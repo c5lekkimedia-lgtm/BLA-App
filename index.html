@@ -326,6 +326,11 @@
   #coloringCanvas{max-width:100%;height:auto;touch-action:none;border-radius:8px;background:#fff;cursor:crosshair}
   #coloringCanvas.zoomed{max-width:none}
   .tool-btn.active{background:var(--purple) !important;color:#fff !important;border-color:var(--purple) !important}
+  .maze-level{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 2px}
+  .maze-level .lvl-title{font-weight:800;color:var(--purple-dark)}
+  .maze-level .lvl-end{font-size:12.5px;font-weight:700;color:var(--muted)}
+  .maze-level input[type=range]{flex:1 1 170px;max-width:320px;height:30px;accent-color:var(--purple);cursor:pointer}
+  .maze-level #mazeLevelLabel{font-weight:800;min-width:150px}
   .maze-grid{display:grid;gap:0;margin:16px auto;width:max-content;user-select:none;touch-action:none}
   .maze-cell{box-sizing:border-box;display:flex;align-items:center;justify-content:center;background:#fff;
     font-size:15px;position:relative}
@@ -2001,12 +2006,31 @@ function generateMaze(size){
   carve(0,0);
   return cells;
 }
-// Bigger, harder maze for older age groups.
-function mazeSettings(){
-  const age=ageKey();
-  if(age==='3-5') return {size:6, cell:46};
-  if(age==='10-12') return {size:13, cell:30};
-  return {size:9, cell:38};
+// Bigger, harder maze for older age groups. Level 1 of the difficulty slider is
+// exactly this starting size; each level up adds 2 rows and 2 columns.
+const MAZE_LEVELS = 5, MAZE_LEVEL_STEP = 2, MAZE_MIN_CELL = 24;
+let mazeLevel = 1;
+function mazeSettingsFor(level){
+  const age = ageKey();
+  const base = age==='3-5' ? {size:6, cell:46} : age==='10-12' ? {size:13, cell:30} : {size:9, cell:38};
+  const size = base.size + (level-1)*MAZE_LEVEL_STEP;
+  // Level 1 keeps today's cell size. Bigger mazes shrink the cells so the board stays
+  // about the same width, but never below a size a finger can still tap.
+  const cell = level===1 ? base.cell : Math.max(MAZE_MIN_CELL, Math.floor(base.size*base.cell/size));
+  return {size, cell};
+}
+function mazeSettings(){ return mazeSettingsFor(mazeLevel); }
+function mazeLevelLabel(level){ const {size}=mazeSettingsFor(level); return `Level ${level} of ${MAZE_LEVELS} · ${size} × ${size}`; }
+// While the slider is being dragged, only the label changes; the new maze is built when it is released.
+function mazeLevelPreview(v){
+  const level = Math.max(1, Math.min(MAZE_LEVELS, parseInt(v,10)||1));
+  const lab = document.getElementById('mazeLevelLabel'); if(lab) lab.textContent = mazeLevelLabel(level);
+  const sl = document.getElementById('mazeLevel'); if(sl) sl.setAttribute('aria-valuetext', mazeLevelLabel(level));
+}
+function setMazeLevel(v){
+  mazeLevel = Math.max(1, Math.min(MAZE_LEVELS, parseInt(v,10)||1));
+  renderMaze(getLesson(currentLessonId), document.getElementById('activityBox'));
+  const sl = document.getElementById('mazeLevel'); if(sl) sl.focus();   // keep keyboard users on the slider
 }
 function mazeConnected(a,b){
   if(!mazeGrid) return false;
@@ -2039,6 +2063,14 @@ function renderMaze(l, box){
       <button class="btn secondary tool-btn" id="mazeModeTrace" onclick="setMazeMode('trace')">✍️ Trace the path</button>
       <button class="btn secondary" onclick="renderMaze(getLesson(currentLessonId), document.getElementById('activityBox'))">🔀 New maze</button>
       <button class="btn secondary" onclick="printMaze()">🖨️ Print this maze</button>
+    </div>
+    <div class="maze-level">
+      <label class="lvl-title" for="mazeLevel">Difficulty</label>
+      <span class="lvl-end">Easiest</span>
+      <input type="range" id="mazeLevel" min="1" max="${MAZE_LEVELS}" step="1" value="${mazeLevel}"
+        aria-valuetext="${esc(mazeLevelLabel(mazeLevel))}" oninput="mazeLevelPreview(this.value)" onchange="setMazeLevel(this.value)">
+      <span class="lvl-end">Hardest</span>
+      <span id="mazeLevelLabel">${esc(mazeLevelLabel(mazeLevel))}</span>
     </div>
     <div class="grid-scroll"><div class="maze-grid" id="mazeGridEl" style="grid-template-columns:repeat(${size},${cell}px)"></div></div>
     <div id="mazeFeedback" class="feedback" role="status"></div>`;
@@ -4201,7 +4233,7 @@ Object.assign(window, {
   selectArchiveLesson, selectWeeklyBoardLesson,
   setColoringFilter, openColoringMark, closeColoringMark, updateMarkTotal, saveColoringMark,
   zoomColoring, undoColoring, redoColoring,
-  renderMaze, setMazeMode, printMaze,
+  renderMaze, setMazeMode, printMaze, mazeLevelPreview, setMazeLevel,
   renderCrossword, cwCheck, cwHint, cwClueClick, printCrossword,
   renderChallengeScreen, setChallengeActivity, selectChallenge, chReplay, chPickAnother, selectChallengeBoard, setLeaderboardTab,
   teacherEditChallenge, teacherPreviewChallenge, chCancel, toggleChallengeStatus, deleteChallenge, publishChallenge,
